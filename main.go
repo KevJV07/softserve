@@ -9,24 +9,32 @@ import (
 	"github.com/gorilla/mux"
 )
 
+// swagger:model
 type User struct {
-	ID   int    `json:"id"`
+
+	// The ID
+	// min: 0
+	// max: 30
+	ID int `json:"id"`
+
+	// The name for this user
+	// required: true
+	// min lenght: 1
 	Name string `json:"name"`
 }
 
-var users []User //{
+var users []User
 var idCounter int
 
 func main() {
-	setupAndRunUsersServer()
+	runServer()
 
-	//http.ListenAndServe(":3000", r)
 }
 
-func setupAndRunUsersServer() {
+func runServer() {
 	router := mux.NewRouter()
 
-	setupDatabase()
+	database()
 
 	router.HandleFunc("/api/users", getUsers).Methods("GET")
 	router.HandleFunc("/api/users/{id}", getUser).Methods("GET")
@@ -38,12 +46,28 @@ func setupAndRunUsersServer() {
 
 }
 
-func setupDatabase() {
+func database() {
 	users = append(users, User{ID: 1, Name: "Kevin"})
-	users = append(users, User{ID: 2, Name: "Juan"})
+	users = append(users, User{ID: 2, Name: "Oscar"})
 	idCounter = 2
 }
 func addUser(w http.ResponseWriter, r *http.Request) {
+
+	// swagger:operation POST /users postUser
+	//
+	// Include documentation
+	//
+	// ---
+	// produces:
+	// - application/json
+	// parameters:
+	//   - name: Body
+	//     in: body
+	//     schema:
+	//       "$ref": "#/definitions/User"
+	// responses:
+	//   '200':
+	//     description: user response
 
 	var user User
 	_ = json.NewDecoder(r.Body).Decode(&user)
@@ -56,11 +80,39 @@ func addUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func getUsers(w http.ResponseWriter, r *http.Request) {
+	// swagger:operation GET /users getUsers
+	//
+	// Insert documentation
+	//
+	// ---
+	// produces:
+	// - application/json
+	// responses:
+	//   '200':
+	//     description: user response
+	//     schema:
+	//       type: array
+	//       items:
+	//         "$ref": "#/definitions/User"
 
 	json.NewEncoder(w).Encode(users)
 }
 
 func getUser(w http.ResponseWriter, r *http.Request) {
+	// swagger:operation GET /users getUsers
+	//
+	// Insert documentation
+	//
+	// ---
+	// produces:
+	// - application/json
+	// responses:
+	//   '200':
+	//     description: user response
+	//     schema:
+	//       type: array
+	//       items:
+	//         "$ref": "#/definitions/User"
 
 	params := mux.Vars(r)
 	for _, user := range users {
