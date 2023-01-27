@@ -1,0 +1,28 @@
+version: '3.3'
+services:
+  db:
+    hostname: mongo-test
+    container_name: "mongoapp"
+    image: mongo
+    networks:
+      - channel-0
+    ports: 
+       - "27017:27017"
+    restart: unless-stopped
+    volumes:
+      - ".mongodata:/data/db"
+      - ./mongo/config:/etc/mongo
+    # command: --config /etc/mongo/mongod.conf
+
+  app: 
+    hostname: app-test
+    container_name: "restapi"
+    image: api
+    networks:
+      - channel-0
+    ports: 
+      - "3000:3000"
+    restart: unless-stopped
+
+networks:
+  channel-0: {}

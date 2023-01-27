@@ -1,123 +1,97 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
-	"strconv"
+	"os"
+	"time"
 
 	"github.com/gorilla/mux"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+
+	_ "github.com/eminetto/clean-architecture-go/migrations"
 )
 
-// swagger:model
-type User struct {
+func main() {
+	setupAndRunUsersServer()
 
-	// The ID
-	// min: 0
-	// max: 30
-	ID int `json:"id"`
+	//http.ListenAndServe(":3000", r)
+}
 
-	// The name for this user
-	// required: true
-	// min lenght: 1
-	Name string `json:"name"`
+func setupAndRunUsersServer() {
+
+	router := mux.NewRouter()
+
+	SetupDatabase()
+
+	router.HandleFunc("/api/users", GetUsers).Methods("GET")
+	router.HandleFunc("/api/users/{id}", GetUser).Methods("GET")
+	router.HandleFunc("/api/users", AddUser).Methods("POST")
+	router.HandleFunc("/api/users/{id}", UpdateUser).Methods("PUT")
+	router.HandleFunc("/api/users/{id}", DeleteUser).Methods("DELETE")
+	log.Fatal(http.ListenAndServe(":3000", router))
 }
 
 var users []User
-var idCounter int
 
-func main() {
-	runServer()
-
+type User struct {
+	ID       string `json:"id"`
+	Name     string `json:"name"`
+	Lastname string `json:"lastname"`
+	Role     string `json:"role"`
 }
 
-func runServer() {
-	router := mux.NewRouter()
+func SetupDatabase() []User {
 
-	database()
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	//client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://kevs:password@mongorestapi:27017/miapp?authSource=admin"))
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://localhost:27017"))
+	defer func() {
+		if err = client.Disconnect(ctx); err != nil {
+			panic(err)
+		}
+	}()
+	usersCollection := client.Database("classroomdb").Collection("projectLab")
 
-	router.HandleFunc("/api/users", getUsers).Methods("GET")
-	router.HandleFunc("/api/users/{id}", getUser).Methods("GET")
-	router.HandleFunc("/api/users", addUser).Methods("POST")
-	router.HandleFunc("/api/users/{id}", updateUser).Methods("PUT")
-	router.HandleFunc("/api/users/{id}", deleteUser).Methods("DELETE")
-
-	log.Fatal(http.ListenAndServe(":3000", router))
-
+	collection, err := usersCollection.Find(context.TODO(), bson.D{})
+	if err != nil {
+		log.Fatal(err)
+	} else {
+		for collection.Next(ctx) {
+			var result User
+			err := collection.Decode(&result)
+			if err != nil {
+				fmt.Println("cursor.Next() error:", err)
+				os.Exit(1)
+			} else {
+				users = append(users, result)
+			}
+		}
+	}
+	return users
 }
 
-func database() {
-	users = append(users, User{ID: 1, Name: "Kevin"})
-	users = append(users, User{ID: 2, Name: "Oscar"})
-	idCounter = 2
-}
-func addUser(w http.ResponseWriter, r *http.Request) {
-
-	// swagger:operation POST /users postUser
-	//
-	// Include documentation
-	//
-	// ---
-	// produces:
-	// - application/json
-	// parameters:
-	//   - name: Body
-	//     in: body
-	//     schema:
-	//       "$ref": "#/definitions/User"
-	// responses:
-	//   '200':
-	//     description: user response
-
+func AddUser(w http.ResponseWriter, r *http.Request) {
 	var user User
 	_ = json.NewDecoder(r.Body).Decode(&user)
-
-	idCounter++
-	user.ID = idCounter
 	users = append(users, user)
-
 	json.NewEncoder(w).Encode(user)
 }
 
-func getUsers(w http.ResponseWriter, r *http.Request) {
-	// swagger:operation GET /users getUsers
-	//
-	// Insert documentation
-	//
-	// ---
-	// produces:
-	// - application/json
-	// responses:
-	//   '200':
-	//     description: user response
-	//     schema:
-	//       type: array
-	//       items:
-	//         "$ref": "#/definitions/User"
-
+func GetUsers(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(users)
 }
 
-func getUser(w http.ResponseWriter, r *http.Request) {
-	// swagger:operation GET /users getUsers
-	//
-	// Insert documentation
-	//
-	// ---
-	// produces:
-	// - application/json
-	// responses:
-	//   '200':
-	//     description: user response
-	//     schema:
-	//       type: array
-	//       items:
-	//         "$ref": "#/definitions/User"
-
+func GetUser(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	for _, user := range users {
-		id, _ := strconv.Atoi(params["id"])
-
+		id := (params["id"])
 		if user.ID == id {
 			json.NewEncoder(w).Encode(user)
 			return
@@ -126,11 +100,10 @@ func getUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(&User{})
 }
 
-func updateUser(w http.ResponseWriter, r *http.Request) {
-
+func UpdateUser(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	for index, value := range users {
-		id, _ := strconv.Atoi(params["id"])
+		id := params["id"]
 		if value.ID == id {
 			var user User
 			_ = json.NewDecoder(r.Body).Decode(&user)
@@ -143,11 +116,10 @@ func updateUser(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(&User{})
 }
 
-func deleteUser(w http.ResponseWriter, r *http.Request) {
+func DeleteUser(w http.ResponseWriter, r *http.Request) {
 	params := mux.Vars(r)
 	for index, user := range users {
-
-		id, _ := strconv.Atoi(params["id"])
+		id := params["id"]
 		if user.ID == id {
 			users = append(users[:index], users[index+1:]...)
 		}
